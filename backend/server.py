@@ -595,6 +595,84 @@ async def debt_plan(debt_id: str):
     }
 
 
+@api_router.get("/rebalance")
+async def rebalance(monthly_budget: float = 0.0, months: int = 12):
+    """Suggerisce quanto versare in ogni categoria targettizzata per convergere al target in N mesi."""
+    categories = await get_categories()
+    targeted = [c for c in categories if c.target_allocation > 0]
+    if not targeted:
+        return {"suggestions": [], "note": "Nessuna categoria con target impostato"}
+
+    entries_docs = await db.monthly_entries.find({}, {"_id": 0}).sort("mese", 1).to_list(2000)
+    entries = [MonthlyEntry(**d) for d in entries_docs]
+
+    # Compute current values per targeted category
+    accum = {c.id: c.initial_balance for c in targeted if c.kind == "accumulation"}
+    balance = {c.id: c.initial_balance for c in targeted if c.kind == "balance"}
+    for e in entries:
+        for cid, amt in (e.contributions or {}).items():
+            if cid in accum:
+                accum[cid] += float(amt or 0)
+        for cid, amt in (e.balances or {}).items():
+            if cid in balance:
+                balance[cid] = float(amt or 0)
+
+    def val(c):
+        return accum.get(c.id, 0) if c.kind == "accumulation" else balance.get(c.id, 0)
+
+    total_current = sum(val(c) for c in targeted)
+
+    # Auto-detect monthly_budget from last entry if not provided
+    if monthly_budget <= 0 and entries:
+        last = entries[-1]
+        monthly_budget = sum((last.contributions or {}).get(c.id, 0) for c in targeted)
+
+    months = max(1, months)
+    total_final = total_current + monthly_budget * months
+
+    # Target values and gaps (contribuire solo a chi è sotto-esposto)
+    gaps = {}
+    for c in targeted:
+        current_pct = (val(c) / total_current * 100) if total_current > 0 else 0
+        if current_pct < c.target_allocation:
+            target_value = c.target_allocation * total_final / 100
+            gaps[c.id] = max(0, target_value - val(c))
+        else:
+            gaps[c.id] = 0.0  # già allineato o sovra-esposto: skip
+    total_gap = sum(gaps.values())
+
+    suggestions = []
+    for c in targeted:
+        gap = gaps[c.id]
+        # Suggested contribution: share of budget proportional to gap
+        if total_gap > 0 and monthly_budget > 0:
+            share = gap / total_gap
+            suggested_monthly = share * monthly_budget
+        else:
+            suggested_monthly = 0.0
+        current_pct = (val(c) / total_current * 100) if total_current > 0 else 0
+        suggestions.append({
+            "id": c.id,
+            "name": c.name,
+            "color": c.color,
+            "current_value": round(val(c), 2),
+            "current_pct": round(current_pct, 2),
+            "target_pct": c.target_allocation,
+            "gap_euro": round(gap, 2),
+            "suggested_monthly": round(suggested_monthly, 2),
+            "months": months,
+        })
+
+    return {
+        "monthly_budget": round(monthly_budget, 2),
+        "months": months,
+        "total_current": round(total_current, 2),
+        "total_final_projected": round(total_final, 2),
+        "total_gap": round(total_gap, 2),
+        "suggestions": suggestions,
+    }
+
+
 # ---------- Goals ----------
 @api_router.get("/goals", response_model=List[Goal])
 async def list_goals():

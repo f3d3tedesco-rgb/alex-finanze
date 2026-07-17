@@ -1,9 +1,12 @@
+import { useState } from "react";
 import useSWR from "swr";
 import { api, fmtEUR, fmtMese } from "@/lib/api";
 import KpiCard from "@/components/KpiCard";
 import ProgressGoal from "@/components/ProgressGoal";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Wallet, TrendDown, ChartLine, Lightning, Shield, Coins, ChartBar,
+  Wallet, TrendDown, ChartLine, Lightning, Shield, Coins, ChartBar, Scales,
 } from "@phosphor-icons/react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -30,6 +33,10 @@ function TooltipBox({ active, payload, label }) {
 
 export default function Dashboard() {
   const { data, isLoading } = useSWR("/dashboard", fetcher);
+  const [budget, setBudget] = useState("");
+  const [months, setMonths] = useState(12);
+  const rebalanceUrl = `/rebalance?monthly_budget=${Number(budget) || 0}&months=${months || 12}`;
+  const { data: rebalance } = useSWR(rebalanceUrl, fetcher);
 
   if (isLoading || !data) {
     return (
@@ -196,6 +203,67 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {rebalance && rebalance.suggestions && rebalance.suggestions.length > 0 && (
+        <div className="bg-[#121212] border border-neutral-800 rounded-md p-6" data-testid="rebalance-card">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3">
+              <Scales size={22} weight="bold" className="text-indigo-400" />
+              <div>
+                <div className="label-eyebrow text-indigo-400">Piano di ribilanciamento</div>
+                <h3 className="font-heading text-xl font-bold mt-1">Quanto versare questo mese</h3>
+              </div>
+            </div>
+            <div className="flex gap-3 items-end">
+              <div>
+                <Label className="label-eyebrow">PAC mensile €</Label>
+                <Input type="number" step="1" placeholder={`Auto: ${fmtEUR(rebalance.monthly_budget)}`}
+                  value={budget} onChange={(e) => setBudget(e.target.value)}
+                  className="mt-1 bg-black border-neutral-800 w-40 font-mono-num" data-testid="reb-budget" />
+              </div>
+              <div>
+                <Label className="label-eyebrow">Mesi target</Label>
+                <Input type="number" min="1" max="120" value={months}
+                  onChange={(e) => setMonths(parseInt(e.target.value) || 12)}
+                  className="mt-1 bg-black border-neutral-800 w-24 font-mono-num" data-testid="reb-months" />
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
+            Distribuisce il tuo PAC mensile ({fmtEUR(rebalance.monthly_budget)}) tra le categorie sotto-esposte per convergere ai target in {rebalance.months} mesi. Gap totale da colmare: <span className="font-mono-num text-white">{fmtEUR(rebalance.total_gap)}</span>.
+          </p>
+
+          <div className="space-y-3">
+            {rebalance.suggestions.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 p-3 rounded-sm border border-neutral-900 hover:border-neutral-800" data-testid={`reb-${s.id}`}>
+                <span className="h-3 w-3 rounded-full shrink-0" style={{ background: s.color }} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{s.name}</div>
+                  <div className="text-xs text-neutral-500 font-mono-num">
+                    Oggi: {fmtEUR(s.current_value)} ({s.current_pct}%) · Target: {s.target_pct}%
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`font-mono-num text-lg font-bold ${s.suggested_monthly > 0 ? "text-emerald-400" : "text-neutral-500"}`}>
+                    {s.suggested_monthly > 0 ? "+" : ""}{fmtEUR(s.suggested_monthly)}
+                  </div>
+                  <div className="text-xs text-neutral-500 font-mono-num">/mese</div>
+                </div>
+                <div className="hidden md:block text-right w-24">
+                  <div className="text-xs text-neutral-500">Gap</div>
+                  <div className="font-mono-num text-sm text-amber-400">{fmtEUR(s.gap_euro)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {rebalance.total_gap === 0 && (
+            <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-sm text-emerald-400 text-sm">
+              ✓ Portafoglio già allineato al target o sopra. Continua con il tuo PAC standard.
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
         <div className="label-eyebrow mb-1">Financial Stress · Sub-indici</div>

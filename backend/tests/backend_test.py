@@ -371,3 +371,177 @@ def test_ai_analyze_smoke(s):
     required = {"azienda", "ticker", "decisione_finale", "score", "motivazione"}
     assert required.issubset(d.keys()), f"missing keys, got {list(d.keys())}"
     assert d["decisione_finale"] in ("BUY", "HOLD", "SELL", "WATCH")
+
+
+# ---------- v2.1: Target Allocation + Rebalance ----------
+def _setup_rebalance_scenario(s):
+    """Create 3 test categories with target_allocation and 1 monthly entry."""
+    ids = {
+        "under1": f"TEST_reb_u1_{uuid.uuid4().hex[:6]}",
+        "under2": f"TEST_reb_u2_{uuid.uuid4().hex[:6]}",
+        "over": f"TEST_reb_ov_{uuid.uuid4().hex[:6]}",
+        "notarg": f"TEST_reb_nt_{uuid.uuid4().hex[:6]}",
+    }
+    # under1: current 0, target 50%  -> underweight
+    s.post(f"{API}/categories", json={"id": ids["under1"], "name": "TEST U1",
+                                       "kind": "accumulation", "initial_balance": 0,
+                                       "target_allocation": 50})
+    # under2: current 100, target 30% -> underweight (current pct depends on total)
+    s.post(f"{API}/categories", json={"id": ids["under2"], "name": "TEST U2",
+                                       "kind": "accumulation", "initial_balance": 100,
+                                       "target_allocation": 30})
+    # over: current 900, target 20% -> overweight
+    s.post(f"{API}/categories", json={"id": ids["over"], "name": "TEST OV",
+                                       "kind": "accumulation", "initial_balance": 900,
+                                       "target_allocation": 20})
+    # notarg: target_allocation=0 -> must be excluded
+    s.post(f"{API}/categories", json={"id": ids["notarg"], "name": "TEST NT",
+                                       "kind": "accumulation", "initial_balance": 500,
+                                       "target_allocation": 0})
+    return ids
+
+
+def _cleanup_rebalance_scenario(s, ids):
+    for cid in ids.values():
+        s.delete(f"{API}/categories/{cid}?hard=true")
+
+
+def test_category_target_allocation_persists(s):
+    cid = f"TEST_ta_{uuid.uuid4().hex[:6]}"
+    r = s.post(f"{API}/categories", json={"id": cid, "name": "TEST TA",
+                                           "kind": "accumulation", "target_allocation": 42.5})
+    assert r.status_code == 200
+    assert r.json()["target_allocation"] == 42.5
+    # verify persist
+    cats = s.get(f"{API}/categories").json()
+    found = next(c for c in cats if c["id"] == cid)
+    assert found["target_allocation"] == 42.5
+    s.delete(f"{API}/categories/{cid}?hard=true")
+
+
+def test_rebalance_endpoint_structure(s):
+    ids = _setup_rebalance_scenario(s)
+    try:
+        r = s.get(f"{API}/rebalance", params={"monthly_budget": 500, "months": 12})
+        assert r.status_code == 200
+        d = r.json()
+        for k in ("monthly_budget", "months", "total_current", "total_final_projected",
+                  "total_gap", "suggestions"):
+            assert k in d, f"missing {k}"
+        assert d["monthly_budget"] == 500
+        assert d["months"] == 12
+        assert isinstance(d["suggestions"], list)
+
+        # Only 3 targeted (notarg excluded)
+        sug_ids = {sug["id"] for sug in d["suggestions"]}
+        assert ids["notarg"] not in sug_ids, "target_allocation=0 must be excluded"
+        assert ids["under1"] in sug_ids
+        assert ids["under2"] in sug_ids
+        assert ids["over"] in sug_ids
+
+        # Each suggestion has required fields
+        for sug in d["suggestions"]:
+            for k in ("id", "name", "current_value", "current_pct", "target_pct",
+                      "gap_euro", "suggested_monthly", "months"):
+                assert k in sug, f"suggestion missing {k}"
+    finally:
+        _cleanup_rebalance_scenario(s, ids)
+
+
+def test_rebalance_skips_overweight_and_sums_to_budget(s):
+    ids = _setup_rebalance_scenario(s)
+    try:
+        budget = 500.0
+        r = s.get(f"{API}/rebalance", params={"monthly_budget": budget, "months": 12})
+        d = r.json()
+        by_id = {sug["id"]: sug for sug in d["suggestions"]}
+
+        # Overweight: current 900/1000 = 90% vs target 20% -> suggested_monthly = 0
+        assert by_id[ids["over"]]["suggested_monthly"] == 0, \
+            f"overweight should be 0, got {by_id[ids['over']]['suggested_monthly']}"
+
+        # Underweight cats should get > 0
+        assert by_id[ids["under1"]]["suggested_monthly"] > 0
+        # under2: current 100/1000=10% vs target 30% -> underweight -> > 0
+        assert by_id[ids["under2"]]["suggested_monthly"] > 0
+
+        # Sum of suggested_monthly across all suggestions == budget (approx)
+        total_suggested = sum(sug["suggested_monthly"] for sug in d["suggestions"])
+        assert abs(total_suggested - budget) < 0.5, \
+            f"sum {total_suggested} != budget {budget}"
+    finally:
+        _cleanup_rebalance_scenario(s, ids)
+
+
+def test_rebalance_auto_detect_budget_from_last_entry(s):
+    ids = _setup_rebalance_scenario(s)
+    mese = "2099-11"
+    try:
+        s.delete(f"{API}/monthly-entries/{mese}")
+        # last entry contributes 200 to under1 and 100 to under2 (total 300 to targeted cats)
+        s.post(f"{API}/monthly-entries", json={
+            "mese": mese,
+            "contributions": {ids["under1"]: 200, ids["under2"]: 100, ids["notarg"]: 999},
+            "balances": {}, "debt_payments": {},
+            "entrate_mese": 3500, "spese_mese": 1800,
+        })
+        r = s.get(f"{API}/rebalance", params={"monthly_budget": 0, "months": 12})
+        assert r.status_code == 200
+        d = r.json()
+        # notarg contribution excluded because it's not a targeted category
+        assert d["monthly_budget"] == 300, f"expected auto-detect 300, got {d['monthly_budget']}"
+    finally:
+        s.delete(f"{API}/monthly-entries/{mese}")
+        _cleanup_rebalance_scenario(s, ids)
+
+
+def test_rebalance_no_targets(s):
+    """When no categories have target_allocation>0, returns empty suggestions with note."""
+    # Just call: default seeded categories have target_allocation=0
+    r = s.get(f"{API}/rebalance", params={"monthly_budget": 500, "months": 12})
+    assert r.status_code == 200
+    d = r.json()
+    # If no test cats exist, defaults have target_allocation=0
+    if not d["suggestions"]:
+        assert "note" in d
+
+
+def test_dashboard_allocation_targets(s):
+    ids = _setup_rebalance_scenario(s)
+    try:
+        r = s.get(f"{API}/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "allocation_targets" in d
+        assert "allocation_target_sum" in d
+        at = d["allocation_targets"]
+        at_ids = {a["id"] for a in at}
+        # target=0 must be excluded
+        assert ids["notarg"] not in at_ids
+        # 3 targeted must be present
+        assert ids["under1"] in at_ids
+        assert ids["under2"] in at_ids
+        assert ids["over"] in at_ids
+
+        # Each entry has required fields including status
+        for a in at:
+            for k in ("current_pct", "target_pct", "drift_pct", "status"):
+                assert k in a
+            assert a["status"] in ("aligned", "overweight", "underweight")
+
+        # over category: current_value=900 with target 20% -> overweight (high value, low target)
+        over_entry = next(a for a in at if a["id"] == ids["over"])
+        assert over_entry["status"] == "overweight"
+        assert over_entry["target_pct"] == 20.0
+        assert over_entry["value"] == 900.0
+
+        # under1: value 0, 50% target -> underweight
+        u1 = next(a for a in at if a["id"] == ids["under1"])
+        assert u1["status"] == "underweight"
+        assert u1["target_pct"] == 50.0
+
+        # allocation_target_sum includes our 3 (50+30+20=100) plus any pre-existing targeted defaults
+        assert d["allocation_target_sum"] >= 100.0
+    finally:
+        _cleanup_rebalance_scenario(s, ids)
+

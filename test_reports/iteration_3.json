@@ -1,0 +1,37 @@
+{
+  "summary": "A.L.E.X. v2.1 backend regression: extended /app/backend/tests/backend_test.py with 6 new tests covering target_allocation persistence, /api/rebalance (structure, skip-overweight + sum-to-budget math, auto-detect budget from last entry, no-targets note) and dashboard allocation_targets/allocation_target_sum. 25/25 tests pass in 31.4s (24 v2.0 regression + 6 new v2.1 - AI smoke test also re-verified).",
+  "tested_scope": ["backend"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "passed": [
+    "POST /api/categories with target_allocation=42.5 persists correctly across GET",
+    "GET /api/rebalance?monthly_budget=500&months=12 returns {monthly_budget, months, total_current, total_final_projected, total_gap, suggestions[]}",
+    "Rebalance suggestions include id, name, current_value, current_pct, target_pct, gap_euro, suggested_monthly, months per item",
+    "Categories with target_allocation=0 excluded from suggestions and allocation_targets",
+    "Overweight cat (current_pct >= target_pct) receives suggested_monthly=0",
+    "Underweight cats receive suggested_monthly > 0",
+    "Sum of suggested_monthly across all suggestions == monthly_budget (within 0.5€ tolerance)",
+    "monthly_budget=0 auto-detects budget from sum of last entry contributions to targeted cats (verified: 200+100=300, excluding non-targeted 999)",
+    "No-targets scenario returns note explaining no targeted categories",
+    "GET /api/dashboard returns allocation_targets[] with current_pct, target_pct, drift_pct, status(aligned/overweight/underweight) and allocation_target_sum",
+    "Full v2.0 regression: root, categories CRUD (defaults, upsert, auto-id, soft/hard delete), debts CRUD, settings, monthly-entries dict schema, dashboard math + FSI + fondo_emergenza, debt-plan, goals CRUD, backup export/import, migration verification, AI /ai/analyze (Claude Sonnet 4.5)"
+  ],
+  "failed": [],
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py now 836 lines — over the 700-line threshold. Recommend splitting into modules: routes/categories.py, routes/debts.py, routes/entries.py, routes/dashboard.py, routes/rebalance.py, routes/ai.py.",
+    "rebalance(): when total_current==0 (empty portfolio), all current_pct=0, so all targeted cats are underweight and split budget proportionally by target_value gap. Behavior is sensible but could add explicit test.",
+    "rebalance(): auto-detect budget uses only targeted-cat contributions from last entry — correct and matches spec.",
+    "allocation_target_sum returned as a total across all targeted cats — useful for UI to display '100% coverage' warnings when user's targets don't sum to 100.",
+    "Consider adding validation: warn (not error) when sum of target_allocation across all cats != 100 — currently silent.",
+    "Minor: /api/rebalance accepts negative months implicitly clamped to max(1, months); consider Pydantic Query validation with ge=1."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py (+6 tests for v2.1 target_allocation + rebalance)"],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "not tested (per request)"},
+  "test_credentials": "N/A (no auth in app)",
+  "seed_data_creation": "Tests create TEST_reb_* UUID-based categories with target_allocation set, plus 2099-11 monthly entry for auto-detect test; all cleaned up in finally blocks.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "v2.1 rebalance + target_allocation fully verified. Note: user's real DB has ETF/Satellite/Priamo already configured with target_allocation, so allocation_target_sum in dashboard reflects both user targets + any test cats during test runs (cleaned up post-test). Use /app/backend/tests/backend_test.py as regression base for future iterations."
+}
