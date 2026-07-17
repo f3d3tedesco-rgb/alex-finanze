@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, MagnifyingGlass, TrendUp, Warning, Trash, Sparkle } from "@phosphor-icons/react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+} from "@/components/ui/dialog";
+import { Brain, MagnifyingGlass, TrendUp, Warning, Trash, Sparkle, Plus } from "@phosphor-icons/react";
 
 const fetcher = (url) => api.get(url).then((r) => r.data);
 
@@ -75,6 +78,12 @@ export default function AIAnalisi() {
   const [contesto, setContesto] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manual, setManual] = useState({
+    ticker: "", azienda: "", settore: "", decisione_finale: "WATCH", score: 50,
+    prezzo_obiettivo: "", prezzo_attuale: "", motivazione: "",
+    business_moat: "", management: "", bilanci: "", crescita: "", valutazione: "", trend: "", rischi: "",
+  });
   const { data: watchlist } = useSWR("/watchlist", fetcher);
 
   const runAnalysis = async (e) => {
@@ -131,6 +140,29 @@ export default function AIAnalisi() {
     toast.success("Rimosso dalla watchlist");
   };
 
+  const saveManual = async () => {
+    if (!manual.ticker || !manual.azienda) {
+      toast.error("Ticker e azienda obbligatori");
+      return;
+    }
+    try {
+      await api.post("/watchlist", {
+        ...manual,
+        id: crypto.randomUUID(),
+        score: parseInt(manual.score) || 0,
+        data_analisi: new Date().toISOString(),
+      });
+      mutate("/watchlist");
+      setManualOpen(false);
+      setManual({ ticker: "", azienda: "", settore: "", decisione_finale: "WATCH", score: 50,
+        prezzo_obiettivo: "", prezzo_attuale: "", motivazione: "",
+        business_moat: "", management: "", bilanci: "", crescita: "", valutazione: "", trend: "", rischi: "" });
+      toast.success("Azienda aggiunta manualmente");
+    } catch (e) {
+      toast.error("Errore salvataggio");
+    }
+  };
+
   return (
     <div className="p-6 md:p-8 pb-24 md:pb-8 space-y-6 grid-bg min-h-screen" data-testid="ai-page">
       <div className="flex items-center gap-3">
@@ -141,7 +173,7 @@ export default function AIAnalisi() {
         </div>
       </div>
       <p className="text-neutral-400 text-sm max-w-2xl">
-        Inserisci ticker e nome azienda: l'AI restituisce moat, bilanci, crescita, valutazione, rischi e una decisione motivata (BUY/HOLD/SELL/WATCH).
+        L'AI resta opzionale: usa "Aggiungi manualmente" per incollare analisi fatte con AI gratuite esterne (ChatGPT, Gemini, Claude web) — nessun costo API.
       </p>
 
       <form onSubmit={runAnalysis} className="bg-[#121212] border border-neutral-800 rounded-md p-6 space-y-4">
@@ -190,6 +222,40 @@ export default function AIAnalisi() {
             <><MagnifyingGlass size={18} weight="bold" /> Esegui analisi AI</>
           )}
         </Button>
+        <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" className="ml-2 bg-transparent border-neutral-700 text-white hover:bg-neutral-900" data-testid="btn-manual">
+              <Plus size={16} weight="bold" /> Aggiungi manualmente
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-[#0A0A0A] border-neutral-800 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-heading">Aggiungi analisi manuale</DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-neutral-500">Usa un'AI gratuita esterna (ChatGPT, Gemini, Claude web) e incolla qui i risultati. Nessun costo AI.</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input placeholder="Ticker" value={manual.ticker} onChange={(e) => setManual({ ...manual, ticker: e.target.value.toUpperCase() })} className="bg-black border-neutral-800 font-mono-num uppercase" data-testid="m-ticker" />
+                <Input placeholder="Azienda" value={manual.azienda} onChange={(e) => setManual({ ...manual, azienda: e.target.value })} className="bg-black border-neutral-800" data-testid="m-azienda" />
+              </div>
+              <Input placeholder="Settore" value={manual.settore} onChange={(e) => setManual({ ...manual, settore: e.target.value })} className="bg-black border-neutral-800" />
+              <div className="grid grid-cols-3 gap-3">
+                <select value={manual.decisione_finale} onChange={(e) => setManual({ ...manual, decisione_finale: e.target.value })} className="bg-black border border-neutral-800 rounded-md px-3 py-2 text-sm" data-testid="m-decisione">
+                  <option>BUY</option><option>HOLD</option><option>SELL</option><option>WATCH</option>
+                </select>
+                <Input type="number" placeholder="Score 0-100" value={manual.score} onChange={(e) => setManual({ ...manual, score: e.target.value })} className="bg-black border-neutral-800 font-mono-num" data-testid="m-score" />
+                <Input placeholder="Prezzo target" value={manual.prezzo_obiettivo} onChange={(e) => setManual({ ...manual, prezzo_obiettivo: e.target.value })} className="bg-black border-neutral-800 font-mono-num" />
+              </div>
+              <Textarea placeholder="Motivazione decisione" value={manual.motivazione} onChange={(e) => setManual({ ...manual, motivazione: e.target.value })} className="bg-black border-neutral-800" rows={2} data-testid="m-motivazione" />
+              <Textarea placeholder="Business Moat" value={manual.business_moat} onChange={(e) => setManual({ ...manual, business_moat: e.target.value })} className="bg-black border-neutral-800" rows={2} />
+              <Textarea placeholder="Bilanci" value={manual.bilanci} onChange={(e) => setManual({ ...manual, bilanci: e.target.value })} className="bg-black border-neutral-800" rows={2} />
+              <Textarea placeholder="Rischi" value={manual.rischi} onChange={(e) => setManual({ ...manual, rischi: e.target.value })} className="bg-black border-neutral-800" rows={2} />
+            </div>
+            <DialogFooter>
+              <Button onClick={saveManual} className="bg-emerald-500 hover:bg-emerald-400 text-black" data-testid="btn-save-manual">Salva in watchlist</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </form>
 
       {loading && (

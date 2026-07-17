@@ -7,6 +7,7 @@ import {
   Lifebuoy,
   Brain,
   Gear,
+  Target,
   CircuitryIcon,
 } from "@phosphor-icons/react";
 
@@ -16,6 +17,7 @@ const nav = [
   { to: "/investimenti", label: "Investimenti", icon: ChartPieSlice, testid: "nav-investimenti" },
   { to: "/debiti", label: "Debiti", icon: CreditCard, testid: "nav-debiti" },
   { to: "/emergenza", label: "Fondo Emergenza", icon: Lifebuoy, testid: "nav-emergenza" },
+  { to: "/goals", label: "Goals", icon: Target, testid: "nav-goals" },
   { to: "/ai", label: "AI Analisi Aziende", icon: Brain, testid: "nav-ai" },
   { to: "/impostazioni", label: "Impostazioni", icon: Gear, testid: "nav-impostazioni" },
 ];

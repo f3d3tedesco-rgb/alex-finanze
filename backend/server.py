@@ -90,6 +90,19 @@ class MonthlyEntryCreate(BaseModel):
     note: str = ""
 
 
+class Goal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    nome: str
+    categoria: str = "generico"  # casa, vacanza, auto, pensione, figlia, ...
+    target: float = 0.0
+    attuale: float = 0.0
+    scadenza: str = ""  # YYYY-MM
+    priorita: int = 3  # 1=alta, 5=bassa
+    note: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
 class WatchlistItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -429,6 +442,78 @@ async def add_watchlist(item: WatchlistItem):
 async def delete_watchlist(item_id: str):
     res = await db.watchlist.delete_one({"id": item_id})
     return {"deleted": res.deleted_count}
+
+
+@api_router.get("/goals", response_model=List[Goal])
+async def list_goals():
+    docs = await db.goals.find({}, {"_id": 0}).sort("priorita", 1).to_list(500)
+    return [Goal(**d) for d in docs]
+
+
+@api_router.post("/goals", response_model=Goal)
+async def create_goal(payload: Goal):
+    if not payload.id:
+        payload.id = str(uuid.uuid4())
+    await db.goals.update_one({"id": payload.id}, {"$set": payload.model_dump()}, upsert=True)
+    return payload
+
+
+@api_router.delete("/goals/{goal_id}")
+async def delete_goal(goal_id: str):
+    res = await db.goals.delete_one({"id": goal_id})
+    return {"deleted": res.deleted_count}
+
+
+@api_router.get("/backup/export")
+async def backup_export():
+    settings = await db.settings.find_one({"id": "singleton"}, {"_id": 0})
+    entries = await db.monthly_entries.find({}, {"_id": 0}).to_list(10000)
+    watchlist = await db.watchlist.find({}, {"_id": 0}).to_list(10000)
+    goals = await db.goals.find({}, {"_id": 0}).to_list(10000)
+    return {
+        "version": "1.0",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "settings": settings,
+        "monthly_entries": entries,
+        "watchlist": watchlist,
+        "goals": goals,
+    }
+
+
+class RestorePayload(BaseModel):
+    settings: Optional[Dict[str, Any]] = None
+    monthly_entries: Optional[List[Dict[str, Any]]] = None
+    watchlist: Optional[List[Dict[str, Any]]] = None
+    goals: Optional[List[Dict[str, Any]]] = None
+    replace: bool = True
+
+
+@api_router.post("/backup/import")
+async def backup_import(payload: RestorePayload):
+    if payload.replace:
+        await db.monthly_entries.delete_many({})
+        await db.watchlist.delete_many({})
+        await db.goals.delete_many({})
+    if payload.settings:
+        s = payload.settings
+        s["id"] = "singleton"
+        s["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.settings.update_one({"id": "singleton"}, {"$set": s}, upsert=True)
+    if payload.monthly_entries:
+        for e in payload.monthly_entries:
+            await db.monthly_entries.update_one({"mese": e.get("mese")}, {"$set": e}, upsert=True)
+    if payload.watchlist:
+        for w in payload.watchlist:
+            await db.watchlist.update_one({"id": w.get("id")}, {"$set": w}, upsert=True)
+    if payload.goals:
+        for g in payload.goals:
+            await db.goals.update_one({"id": g.get("id")}, {"$set": g}, upsert=True)
+    return {
+        "settings": bool(payload.settings),
+        "entries": len(payload.monthly_entries or []),
+        "watchlist": len(payload.watchlist or []),
+        "goals": len(payload.goals or []),
+    }
 
 
 @api_router.post("/ai/analyze")

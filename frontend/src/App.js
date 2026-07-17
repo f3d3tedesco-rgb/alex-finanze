@@ -8,6 +8,7 @@ import Investimenti from "@/pages/Investimenti";
 import Debiti from "@/pages/Debiti";
 import FondoEmergenza from "@/pages/FondoEmergenza";
 import AIAnalisi from "@/pages/AIAnalisi";
+import Goals from "@/pages/Goals";
 import Impostazioni from "@/pages/Impostazioni";
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
             <Route path="/investimenti" element={<Investimenti />} />
             <Route path="/debiti" element={<Debiti />} />
             <Route path="/emergenza" element={<FondoEmergenza />} />
+            <Route path="/goals" element={<Goals />} />
             <Route path="/ai" element={<AIAnalisi />} />
             <Route path="/impostazioni" element={<Impostazioni />} />
           </Route>
