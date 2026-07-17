@@ -1,0 +1,112 @@
+{
+  "theme": "Dark Theme (High-End Financial Cockpit / Performance Pro)",
+  "app_name": "A.L.E.X.",
+  "language": "Italian",
+  "typography": {
+    "headings": {
+      "font_family": "Chivo, sans-serif",
+      "classes": "font-bold tracking-tight",
+      "h1": "text-4xl sm:text-5xl",
+      "h2": "text-2xl sm:text-3xl",
+      "h3": "text-xl sm:text-2xl"
+    },
+    "body": {
+      "font_family": "IBM Plex Sans, sans-serif",
+      "classes": "text-sm sm:text-base leading-relaxed tracking-normal"
+    },
+    "numbers_and_data": {
+      "font_family": "JetBrains Mono, monospace",
+      "classes": "tabular-nums tracking-tight font-medium"
+    },
+    "labels": {
+      "classes": "text-xs uppercase tracking-[0.2em] font-semibold text-neutral-400"
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "#0A0A0A",
+      "surface": "#121212",
+      "surface_hover": "#1A1A1A"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "tertiary": "#52525B"
+    },
+    "accents": {
+      "primary": "#F8FAFC",
+      "positive_gains": "#10B981",
+      "negative_losses": "#FF3B30",
+      "warning": "#F59E0B",
+      "ai_magic": "#6366F1"
+    },
+    "borders": {
+      "default": "#27272A",
+      "focus": "#4ade80"
+    },
+    "rules": [
+      "NO teal green or teal blue (#1B93A4) for dashboards.",
+      "Never use pure black #000000, use #0A0A0A.",
+      "Gains/Losses must use high-contrast #10B981 and #FF3B30.",
+      "No full-screen gradients; use matte surfaces with 1px borders."
+    ]
+  },
+  "surfaces_and_borders": {
+    "dashboard_cards": "Flat background (#121212), 1px solid border (border-neutral-800), rounded-md (6px) or rounded-none for sharp technical look. NO soft shadows.",
+    "hover_states": "Slight background lightening (bg-neutral-900), border color brightens to border-neutral-700. Explicit text color definitions.",
+    "glassmorphism": "Used strictly for sticky headers/floating navs. Backdrop-blur-xl, bg-black/80, 1px bottom border border-white/10.",
+    "data_tables": "Border-collapse, subtle border-b on rows, highlight row on hover."
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "Dense and compact for data, but generous for outer margins (p-6, p-8). Container inside borders MUST have p-6.",
+    "bento_grid": "Mode B: High Density Grid. grid-cols-1 md:grid-cols-3 lg:grid-cols-4. Tight gaps (gap-4 or gap-6). Ensure heights match (h-full).",
+    "alignment": "Numbers right-aligned. Labels left-aligned. Never center-align paragraphs or dense data."
+  },
+  "components": {
+    "buttons": "Sharp edges or rounded-sm, primary buttons are white text on dark gray/black background with 1px border. Interactive hover states required.",
+    "progress_bars": "Prominently used for 'Fondo Emergenza', 'Pensione', 'Debito Zio'. Use solid vivid colors against deep dark tracks (bg-neutral-800).",
+    "forms": "Monthly Recap (5-min form) must use Shadcn forms with custom dark styling, tight inputs, clear keyboard navigation.",
+    "charts": "Recharts. Area, Line, Bar, Donut. Must adapt to dark mode (grid lines #27272A, transparent backgrounds).",
+    "navigation": "Visible sidebar or top nav with clear 3-5 links (Dashboard, Recap, Assets, Debts, AI Analysis). Do not hide behind hamburger on desktop."
+  },
+  "visual_enhancers": {
+    "motion": "Minimalist. Micro-interactions for hover/click. Staggered fade-ins for dashboard widgets.",
+    "icons": "Phosphor Icons (@phosphor-icons/react) for dense, professional technical look.",
+    "textures": "Grid backgrounds for the AI Company Analysis section to give it a 'Terminal/Research' feel."
+  },
+  "features_implementation_notes": {
+    "kpi_dashboard": "Top row of grid. Net Worth, Emergency Fund, Debt Remaining, Financial Stress Index, PAC Sustainability.",
+    "monthly_recap": "Dedicated fast-entry form modal or page. Needs Shadcn inputs and 'Save' success toasts (using Sonner).",
+    "ai_company_analysis": "Input for ticker -> 'Claude Sonnet 4.5' mock analysis view. Use the 'ai_magic' color (#6366F1) for highlights here to differentiate from pure financial data. Use skeleton loaders for the 'analysis in progress' state.",
+    "historical_charts": "Line charts for Net Worth over time; Bar charts for PAC growth."
+  },
+  "accessibility": {
+    "contrast": "Ensure 4.5:1 minimum contrast. Use text shadow over any imagery.",
+    "focus": "focus:ring-2 focus:ring-white/50 focus:outline-none.",
+    "testing": "All interactive elements MUST include data-testid attribute (e.g., data-testid='submit-recap-button')."
+  },
+  "media": {
+    "image_urls": {
+      "ai_analysis_background": {
+        "url": "https://images.unsplash.com/photo-1640458240527-6f27eabe8368",
+        "description": "Abstract financial numbers on dark screen to be used as a low-opacity background for the AI Analysis loading state."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Prioritize Recharts for all graphs. Customize tooltips to look premium (dark background, 1px border, tabular nums).",
+    "Build the 5-min recap form using React Hook Form + Zod + Shadcn UI.",
+    "Design the AI Analysis page to look like an advanced terminal/research report.",
+    "Ensure Italian language across the entire UI.",
+    "Do NOT add transition: all. Target specific properties.",
+    "Install and use Phosphor icons (`yarn add @phosphor-icons/react`).",
+    "Ensure `data-testid` is added to all key elements."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Avoid generic 'AI slop' aesthetics. No center-everything layouts.",
+    "Create depth with explicit z-index and 1px borders, not heavy drop shadows.",
+    "Never use generic AI emojis (🤖🧠💭💡🔮) for icons. Use Phosphor Icons.",
+    "Use sonner for all toast notifications.",
+    "Do NOT center align the app container (.App { text-align: center; } is strictly forbidden)."
+  ]
+}
