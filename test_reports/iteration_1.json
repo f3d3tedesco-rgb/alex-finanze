@@ -1,0 +1,26 @@
+{
+  "summary": "Backend-only smoke test for A.L.E.X. Financial Cockpit. All 11 endpoints exercised via public REACT_APP_BACKEND_URL. Settings GET/PUT, monthly-entries CRUD + upsert-by-mese, dashboard cumulative math, FSI weighting, PAC sustainability, fondo_emergenza, debt-plan projection, watchlist add/list/delete, and Claude Sonnet 4.5 AI analyze all functioning correctly.",
+  "tested_scope": ["backend", "integration"],
+  "passed": [
+    "GET /api/ returns app metadata (200)",
+    "GET /api/settings returns singleton (200)",
+    "PUT /api/settings persists all fields including entrate/spese/saldi/debito_zio (200)",
+    "POST /api/monthly-entries creates entry (200)",
+    "POST /api/monthly-entries with same mese upserts existing (verified id preserved, fields overwritten)",
+    "GET /api/monthly-entries returns entries sorted by mese ascending",
+    "DELETE /api/monthly-entries/{mese} removes entry (deleted:1)",
+    "GET /api/dashboard returns last, history, fsi (with sub liquidita/debito/risparmio/buffer), pac_sustainability, fondo_emergenza (attuale/target/copertura_mesi/gap/mesi_target), debito, allocation",
+    "Cumulative math verified: PN = 11000+2200+3250+550+850+1850+4500 - 10700 = 13500 (matches API)",
+    "FSI weights verified: 0.35*58.8 + 0.30*59.2 + 0.25*66.7 + 0.10*92.6 = 64.275 ≈ 64.3 (matches)",
+    "PAC sustainability verified: pct=20% (700/3500), residua=1000 (3500-1800-700), giudizio='Sostenibile'",
+    "GET /api/debt-plan: residuo=10700, mesi_rimanenti=22, data_estinzione=2027-11, piano starts 2026-02 (month after last entry)",
+    "POST/GET/DELETE /api/watchlist round-trip successful",
+    "POST /api/ai/analyze (Claude Sonnet 4.5) returned valid JSON with all 15 required keys in ~24s (decisione=HOLD, score=78)"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "not tested (per request)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "test_credentials.md not required (no auth in app). Frontend testing intentionally skipped per review_request testing_type='backend only'."
+}
