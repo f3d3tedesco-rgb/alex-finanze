@@ -15,96 +15,86 @@ const currentMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const FIELD_GROUPS = [
-  {
-    title: "Contributi Investimenti",
-    eyebrow: "PAC del mese",
-    color: "text-emerald-400",
-    fields: [
-      ["contributo_etf", "ETF"],
-      ["contributo_satellite", "Satellite (azioni)"],
-      ["contributo_priamo_personale", "Priamo · contributo personale"],
-      ["contributo_priamo_azienda", "Priamo · contributo azienda"],
-      ["contributo_fondo_figlia", "Fondo Figlia"],
-      ["contributo_fondo_famiglia", "Fondo Famiglia"],
-      ["contributo_fondo_emergenza", "Fondo Emergenza"],
-    ],
-  },
-  {
-    title: "Debiti",
-    eyebrow: "Pagamenti",
-    color: "text-red-400",
-    fields: [
-      ["pagamento_debito_zio", "Rata Debito Zio"],
-    ],
-  },
-  {
-    title: "Liquidità & Cash Flow",
-    eyebrow: "Saldi & flussi",
-    color: "text-indigo-400",
-    fields: [
-      ["saldo_liquidita_revolut", "Saldo Revolut a fine mese"],
-      ["saldo_conto_deposito", "Saldo Conto Deposito"],
-      ["entrate_mese", "Entrate nette del mese"],
-      ["spese_mese", "Spese totali del mese"],
-    ],
-  },
-];
-
 export default function RecapMensile() {
   const [mese, setMese] = useState(currentMonth());
-  const [form, setForm] = useState({});
+  const { data: categories } = useSWR("/categories", fetcher);
+  const { data: debts } = useSWR("/debts", fetcher);
   const { data: entries } = useSWR("/monthly-entries", fetcher);
+  const [contributions, setContributions] = useState({});
+  const [balances, setBalances] = useState({});
+  const [debtPayments, setDebtPayments] = useState({});
+  const [fondoEm, setFondoEm] = useState(0);
+  const [entrate, setEntrate] = useState(0);
+  const [spese, setSpese] = useState(0);
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const existing = entries?.find((e) => e.mese === mese);
     if (existing) {
-      setForm(existing);
+      setContributions(existing.contributions || {});
+      setBalances(existing.balances || {});
+      setDebtPayments(existing.debt_payments || {});
+      setFondoEm(existing.contributo_fondo_emergenza || 0);
+      setEntrate(existing.entrate_mese || 0);
+      setSpese(existing.spese_mese || 0);
+      setNote(existing.note || "");
     } else {
-      setForm({
-        mese,
-        contributo_etf: 0, contributo_satellite: 0,
-        contributo_priamo_personale: 0, contributo_priamo_azienda: 0,
-        contributo_fondo_figlia: 0, contributo_fondo_famiglia: 0,
-        pagamento_debito_zio: 0, saldo_liquidita_revolut: 0,
-        saldo_conto_deposito: 0, contributo_fondo_emergenza: 0,
-        entrate_mese: 0, spese_mese: 0, note: "",
-      });
+      setContributions({});
+      setBalances({});
+      setDebtPayments({});
+      setFondoEm(0);
+      setEntrate(0);
+      setSpese(0);
+      setNote("");
     }
   }, [mese, entries]);
 
-  const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  if (!categories || !debts) return <div className="p-8 text-neutral-500">Caricamento...</div>;
+
+  const accumCats = categories.filter((c) => c.kind === "accumulation");
+  const balanceCats = categories.filter((c) => c.kind === "balance");
+  const totalePac =
+    Object.values(contributions).reduce((s, v) => s + (Number(v) || 0), 0) + (Number(fondoEm) || 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, mese };
-      Object.keys(payload).forEach((k) => {
-        if (k !== "mese" && k !== "note" && k !== "id" && k !== "created_at") {
-          payload[k] = Number(payload[k]) || 0;
-        }
+      const norm = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Number(v) || 0]));
+      await api.post("/monthly-entries", {
+        mese,
+        contributions: norm(contributions),
+        balances: norm(balances),
+        debt_payments: norm(debtPayments),
+        contributo_fondo_emergenza: Number(fondoEm) || 0,
+        entrate_mese: Number(entrate) || 0,
+        spese_mese: Number(spese) || 0,
+        note,
       });
-      await api.post("/monthly-entries", payload);
-      toast.success("Recap mensile salvato", { description: `${fmtMese(mese)} smistato nelle pagine` });
+      toast.success("Recap mensile salvato", { description: `${fmtMese(mese)} smistato ovunque` });
       mutate("/monthly-entries");
       mutate("/dashboard");
-      mutate("/debt-plan");
     } catch (err) {
-      toast.error("Errore nel salvataggio", { description: err?.message });
+      toast.error("Errore nel salvataggio");
     } finally {
       setSaving(false);
     }
   };
 
-  const totale_pac =
-    (Number(form.contributo_etf) || 0) +
-    (Number(form.contributo_satellite) || 0) +
-    (Number(form.contributo_priamo_personale) || 0) +
-    (Number(form.contributo_fondo_figlia) || 0) +
-    (Number(form.contributo_fondo_famiglia) || 0) +
-    (Number(form.contributo_fondo_emergenza) || 0);
+  const NumberInput = ({ value, onChange, testid }) => (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">€</span>
+      <Input
+        type="number"
+        step="0.01"
+        value={value ?? 0}
+        onChange={onChange}
+        className="pl-7 bg-black border-neutral-800 text-white font-mono-num focus:border-emerald-500 focus:ring-emerald-500/20"
+        data-testid={testid}
+      />
+    </div>
+  );
 
   return (
     <div className="p-6 md:p-8 pb-24 md:pb-8 max-w-5xl" data-testid="recap-page">
@@ -116,79 +106,145 @@ export default function RecapMensile() {
         </div>
       </div>
       <p className="text-neutral-400 text-sm mt-3 max-w-2xl">
-        Inserisci i dati una sola volta. Verranno smistati automaticamente in Dashboard, Investimenti, Debiti e Fondo Emergenza.
+        I campi qui sotto rispecchiano le tue categorie e i tuoi debiti. Gestiscili in Impostazioni per aggiungere, modificare o rimuovere.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-        {/* Mese selector + totale */}
         <div className="bg-[#121212] border border-neutral-800 rounded-md p-5 flex flex-col md:flex-row md:items-end gap-4 justify-between">
           <div className="flex-1">
             <Label className="label-eyebrow">Mese di riferimento</Label>
-            <Input
-              type="month"
-              value={mese}
-              onChange={(e) => setMese(e.target.value)}
-              className="mt-2 bg-black border-neutral-800 text-white font-mono-num"
-              data-testid="input-mese"
-            />
+            <Input type="month" value={mese} onChange={(e) => setMese(e.target.value)}
+              className="mt-2 bg-black border-neutral-800 text-white font-mono-num" data-testid="input-mese" />
           </div>
           <div className="flex-1 md:text-right">
             <div className="label-eyebrow">PAC totale del mese</div>
             <div className="font-mono-num text-3xl font-bold text-emerald-400 mt-1" data-testid="pac-totale">
-              {fmtEUR(totale_pac)}
+              {fmtEUR(totalePac)}
             </div>
           </div>
         </div>
 
-        {/* Groups */}
-        {FIELD_GROUPS.map((g) => (
-          <div key={g.title} className="bg-[#121212] border border-neutral-800 rounded-md p-6">
-            <div className="mb-5">
-              <div className={`label-eyebrow ${g.color}`}>{g.eyebrow}</div>
-              <h3 className="font-heading text-xl font-bold mt-1">{g.title}</h3>
-            </div>
+        {/* Investimenti accumulation */}
+        <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
+          <div className="mb-5">
+            <div className="label-eyebrow text-emerald-400">PAC del mese</div>
+            <h3 className="font-heading text-xl font-bold mt-1">Contributi Investimenti</h3>
+          </div>
+          {accumCats.length === 0 ? (
+            <p className="text-sm text-neutral-500">Nessuna categoria configurata. Vai in Impostazioni → Categorie.</p>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {g.fields.map(([k, label]) => (
-                <div key={k}>
-                  <Label className="text-xs text-neutral-400 mb-1.5 block">{label}</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">€</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form[k] ?? 0}
-                      onChange={(e) => setF(k, e.target.value)}
-                      className="pl-7 bg-black border-neutral-800 text-white font-mono-num focus:border-emerald-500 focus:ring-emerald-500/20"
-                      data-testid={`input-${k}`}
-                    />
-                  </div>
+              {accumCats.map((c) => (
+                <div key={c.id}>
+                  <Label className="text-xs text-neutral-400 mb-1.5 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
+                    {c.name}
+                  </Label>
+                  <NumberInput
+                    value={contributions[c.id] ?? 0}
+                    onChange={(e) => setContributions({ ...contributions, [c.id]: e.target.value })}
+                    testid={`contrib-${c.id}`}
+                  />
+                </div>
+              ))}
+              <div>
+                <Label className="text-xs text-emerald-400 mb-1.5 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Fondo Emergenza
+                </Label>
+                <NumberInput
+                  value={fondoEm}
+                  onChange={(e) => setFondoEm(e.target.value)}
+                  testid="contrib-fondo-emergenza"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Debiti */}
+        <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
+          <div className="mb-5">
+            <div className="label-eyebrow text-red-400">Pagamenti</div>
+            <h3 className="font-heading text-xl font-bold mt-1">Rate Debiti</h3>
+          </div>
+          {debts.length === 0 ? (
+            <p className="text-sm text-neutral-500">Nessun debito. Ottimo! (Aggiungi in Impostazioni → Debiti se necessario)</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {debts.map((d) => (
+                <div key={d.id}>
+                  <Label className="text-xs text-neutral-400 mb-1.5 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
+                    {d.name} <span className="text-neutral-600 font-mono-num">(rata std. {fmtEUR(d.monthly_installment)})</span>
+                  </Label>
+                  <NumberInput
+                    value={debtPayments[d.id] ?? 0}
+                    onChange={(e) => setDebtPayments({ ...debtPayments, [d.id]: e.target.value })}
+                    testid={`debt-pay-${d.id}`}
+                  />
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Liquidità (balance) */}
+        <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
+          <div className="mb-5">
+            <div className="label-eyebrow text-indigo-400">Saldi conti</div>
+            <h3 className="font-heading text-xl font-bold mt-1">Liquidità a fine mese</h3>
           </div>
-        ))}
+          {balanceCats.length === 0 ? (
+            <p className="text-sm text-neutral-500">Nessun conto liquidità configurato.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {balanceCats.map((c) => (
+                <div key={c.id}>
+                  <Label className="text-xs text-neutral-400 mb-1.5 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
+                    Saldo {c.name}
+                  </Label>
+                  <NumberInput
+                    value={balances[c.id] ?? 0}
+                    onChange={(e) => setBalances({ ...balances, [c.id]: e.target.value })}
+                    testid={`balance-${c.id}`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Cash flow */}
+        <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
+          <div className="mb-5">
+            <div className="label-eyebrow">Cash flow del mese</div>
+            <h3 className="font-heading text-xl font-bold mt-1">Entrate & Spese</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-neutral-400 mb-1.5 block">Entrate nette del mese</Label>
+              <NumberInput value={entrate} onChange={(e) => setEntrate(e.target.value)} testid="input-entrate" />
+            </div>
+            <div>
+              <Label className="text-xs text-neutral-400 mb-1.5 block">Spese totali del mese</Label>
+              <NumberInput value={spese} onChange={(e) => setSpese(e.target.value)} testid="input-spese" />
+            </div>
+          </div>
+        </div>
 
         {/* Note */}
         <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
           <Label className="label-eyebrow">Note del mese</Label>
-          <Textarea
-            value={form.note || ""}
-            onChange={(e) => setF("note", e.target.value)}
-            className="mt-3 bg-black border-neutral-800 text-white"
-            placeholder="Spese straordinarie, considerazioni, priorità..."
-            rows={3}
-            data-testid="input-note"
-          />
+          <Textarea value={note} onChange={(e) => setNote(e.target.value)}
+            className="mt-3 bg-black border-neutral-800 text-white" rows={3}
+            placeholder="Spese straordinarie, considerazioni, priorità..." data-testid="input-note" />
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            type="submit"
-            disabled={saving}
-            className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold border-0"
-            data-testid="btn-save-recap"
-          >
-            {saving ? <>Salvataggio...</> : <><FloppyDisk size={18} weight="bold" /> Salva recap mensile</>}
+          <Button type="submit" disabled={saving} className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold border-0" data-testid="btn-save-recap">
+            {saving ? "Salvataggio..." : <><FloppyDisk size={18} weight="bold" /> Salva recap mensile</>}
           </Button>
           {entries?.find((e) => e.mese === mese) && (
             <span className="text-xs text-emerald-400 flex items-center gap-1.5">
