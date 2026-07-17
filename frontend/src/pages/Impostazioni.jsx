@@ -50,7 +50,7 @@ export default function Impostazioni() {
 
   const [catOpen, setCatOpen] = useState(false);
   const [catEdit, setCatEdit] = useState(null);
-  const [catForm, setCatForm] = useState({ name: "", color: "#10B981", kind: "accumulation", initial_balance: 0, order: 100, note: "" });
+  const [catForm, setCatForm] = useState({ name: "", color: "#10B981", kind: "accumulation", initial_balance: 0, target_allocation: 0, order: 100, note: "" });
 
   const [debtOpen, setDebtOpen] = useState(false);
   const [debtEdit, setDebtEdit] = useState(null);
@@ -81,7 +81,7 @@ export default function Impostazioni() {
   // Categories
   const openNewCat = () => {
     setCatEdit(null);
-    setCatForm({ name: "", color: PALETTE[Math.floor(Math.random() * PALETTE.length)], kind: "accumulation", initial_balance: 0, order: (categories.length + 1) * 10, note: "" });
+    setCatForm({ name: "", color: PALETTE[Math.floor(Math.random() * PALETTE.length)], kind: "accumulation", initial_balance: 0, target_allocation: 0, order: (categories.length + 1) * 10, note: "" });
     setCatOpen(true);
   };
   const openEditCat = (c) => { setCatEdit(c); setCatForm(c); setCatOpen(true); };
@@ -92,6 +92,7 @@ export default function Impostazioni() {
         ...catForm,
         id: catEdit?.id || "",
         initial_balance: Number(catForm.initial_balance) || 0,
+        target_allocation: Number(catForm.target_allocation) || 0,
         order: parseInt(catForm.order) || 0,
         archived: catForm.archived || false,
       };
@@ -188,6 +189,7 @@ export default function Impostazioni() {
 
   const activeCats = categories.filter((c) => !c.archived);
   const archivedCats = categories.filter((c) => c.archived);
+  const targetSum = activeCats.reduce((s, c) => s + (Number(c.target_allocation) || 0), 0);
   const activeDebts = debts.filter((d) => !d.archived);
   const archivedDebts = debts.filter((d) => d.archived);
 
@@ -232,6 +234,17 @@ export default function Impostazioni() {
             <p className="text-xs text-neutral-500 mt-2 max-w-xl">
               Aggiungi, modifica o rimuovi categorie in qualsiasi momento. Ogni Recap Mensile mostrerà automaticamente i campi giusti.
             </p>
+            <div className="mt-3 text-xs font-mono-num">
+              <span className="text-neutral-500">Somma target allocazione:</span>{" "}
+              <span className={targetSum === 100 ? "text-emerald-400" : targetSum === 0 ? "text-neutral-500" : "text-amber-400"}>
+                {targetSum.toFixed(1)}%
+              </span>
+              {targetSum > 0 && targetSum !== 100 && (
+                <span className="text-amber-400 ml-2">
+                  · {targetSum > 100 ? `${(targetSum - 100).toFixed(1)}% oltre 100` : `manca ${(100 - targetSum).toFixed(1)}%`}
+                </span>
+              )}
+            </div>
           </div>
           <Dialog open={catOpen} onOpenChange={setCatOpen}>
             <DialogTrigger asChild>
@@ -269,6 +282,13 @@ export default function Impostazioni() {
                     className="mt-2 bg-black border-neutral-800 font-mono-num" data-testid="cat-initial" />
                 </div>
                 <div>
+                  <Label className="label-eyebrow">% Target allocazione (0-100 — lascia 0 se non applicabile)</Label>
+                  <Input type="number" step="1" min="0" max="100" value={catForm.target_allocation}
+                    onChange={(e) => setCatForm({ ...catForm, target_allocation: e.target.value })}
+                    className="mt-2 bg-black border-neutral-800 font-mono-num" data-testid="cat-target" />
+                  <p className="text-xs text-neutral-500 mt-1">Es. ETF 60%, Satellite 20%, Priamo 20%. La Dashboard ti dirà se sei allineato.</p>
+                </div>
+                <div>
                   <Label className="label-eyebrow">Colore</Label>
                   <div className="mt-2"><ColorPicker value={catForm.color} onChange={(c) => setCatForm({ ...catForm, color: c })} /></div>
                 </div>
@@ -294,6 +314,7 @@ export default function Impostazioni() {
                   <div className="text-sm font-medium truncate">{c.name}</div>
                   <div className="text-xs text-neutral-500 font-mono-num">
                     {c.kind === "accumulation" ? "PAC" : "Saldo"} · iniziale {fmtEUR(c.initial_balance)}
+                    {c.target_allocation > 0 && <span className="ml-2 text-indigo-400">· target {c.target_allocation}%</span>}
                   </div>
                 </div>
               </div>

@@ -39,6 +39,7 @@ class Category(BaseModel):
     color: str = "#10B981"
     kind: str = "accumulation"  # "accumulation" | "balance"
     initial_balance: float = 0.0
+    target_allocation: float = 0.0  # % target di allocazione (0-100)
     order: int = 0
     archived: bool = False
     note: str = ""
@@ -509,6 +510,28 @@ async def dashboard():
     allocation.append({"id": "fondo_emergenza", "name": "Fondo Emergenza",
                        "value": round(last.get("fondo_emergenza", 0), 2), "color": "#10B981", "kind": "special"})
 
+    # Allocation targets analysis (only categories with target_allocation > 0)
+    targeted = [c for c in categories if c.target_allocation > 0]
+    total_targeted_value = 0.0
+    for c in targeted:
+        v = last["accum"].get(c.id) if c.kind == "accumulation" else last["balance"].get(c.id)
+        total_targeted_value += float(v or 0)
+    allocation_targets = []
+    for c in targeted:
+        v = last["accum"].get(c.id) if c.kind == "accumulation" else last["balance"].get(c.id)
+        v = float(v or 0)
+        current_pct = (v / total_targeted_value * 100) if total_targeted_value > 0 else 0
+        drift = current_pct - c.target_allocation
+        allocation_targets.append({
+            "id": c.id, "name": c.name, "color": c.color,
+            "value": round(v, 2),
+            "current_pct": round(current_pct, 2),
+            "target_pct": round(c.target_allocation, 2),
+            "drift_pct": round(drift, 2),
+            "status": "aligned" if abs(drift) <= 3 else ("overweight" if drift > 0 else "underweight"),
+        })
+    target_sum = round(sum(c.target_allocation for c in targeted), 2)
+
     # Per-debt residuals
     debts_out = []
     for d in debts:
@@ -536,6 +559,8 @@ async def dashboard():
             "gap": round(max(0, target_fondo_em - last.get("fondo_emergenza", 0)), 2),
         },
         "allocation": allocation,
+        "allocation_targets": allocation_targets,
+        "allocation_target_sum": target_sum,
     }
 
 

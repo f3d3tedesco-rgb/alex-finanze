@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import { api, fmtEUR, fmtMese } from "@/lib/api";
-import { ChartPieSlice } from "@phosphor-icons/react";
+import { ChartPieSlice, Target, ArrowUpRight, ArrowDownRight, CheckCircle } from "@phosphor-icons/react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
 const fetcher = (url) => api.get(url).then((r) => r.data);
@@ -8,7 +8,7 @@ const fetcher = (url) => api.get(url).then((r) => r.data);
 export default function Investimenti() {
   const { data } = useSWR("/dashboard", fetcher);
   if (!data) return <div className="p-8 text-neutral-500">Caricamento...</div>;
-  const { history, last, categories } = data;
+  const { history, last, categories, allocation_targets, allocation_target_sum } = data;
   const activeCats = categories.filter((c) => !c.archived);
 
   // Flatten history for line chart
@@ -48,6 +48,65 @@ export default function Investimenti() {
           );
         })}
       </div>
+
+      {allocation_targets && allocation_targets.length > 0 && (
+        <div className="bg-[#121212] border border-neutral-800 rounded-md p-6" data-testid="allocation-targets">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <Target size={18} className="text-indigo-400" />
+              <div>
+                <div className="label-eyebrow text-indigo-400">Ribilanciamento portafoglio</div>
+                <h3 className="font-heading text-xl font-bold mt-1">Target di Allocazione</h3>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-neutral-500">Somma target</div>
+              <div className={`font-mono-num text-lg font-bold ${allocation_target_sum === 100 ? "text-emerald-400" : "text-amber-400"}`}>
+                {allocation_target_sum}%
+              </div>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {allocation_targets.map((a) => {
+              const statusIcon = a.status === "aligned" ? CheckCircle : (a.status === "overweight" ? ArrowUpRight : ArrowDownRight);
+              const statusColor = a.status === "aligned" ? "text-emerald-400" : (a.status === "overweight" ? "text-amber-400" : "text-red-400");
+              const Icon = statusIcon;
+              return (
+                <div key={a.id} data-testid={`target-${a.id}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: a.color }} />
+                      <span className="text-sm font-medium truncate">{a.name}</span>
+                      <span className="text-xs text-neutral-500 font-mono-num">{fmtEUR(a.value)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs font-mono-num text-neutral-400">
+                        <span className="text-white">{a.current_pct}%</span> / target {a.target_pct}%
+                      </div>
+                      <div className={`flex items-center gap-1 ${statusColor}`}>
+                        <Icon size={14} weight="bold" />
+                        <span className="text-xs font-mono-num font-bold">
+                          {a.drift_pct >= 0 ? "+" : ""}{a.drift_pct}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative w-full h-2 bg-neutral-800 rounded-sm overflow-hidden">
+                    <div className="absolute top-0 left-0 h-full" style={{ background: a.color, width: `${Math.min(100, a.current_pct)}%` }} />
+                    <div className="absolute top-0 h-full border-l-2 border-white/60" style={{ left: `${Math.min(100, a.target_pct)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-5 pt-4 border-t border-neutral-800 flex items-center gap-4 text-xs text-neutral-500">
+            <span className="flex items-center gap-1.5"><CheckCircle size={12} weight="fill" className="text-emerald-400" /> Allineato (±3%)</span>
+            <span className="flex items-center gap-1.5"><ArrowUpRight size={12} weight="bold" className="text-amber-400" /> Sovra-esposto</span>
+            <span className="flex items-center gap-1.5"><ArrowDownRight size={12} weight="bold" className="text-red-400" /> Sotto-esposto</span>
+            <span className="ml-auto">Linea bianca = target · Barra colorata = attuale</span>
+          </div>
+        </div>
+      )}
 
       <div className="bg-[#121212] border border-neutral-800 rounded-md p-6">
         <div className="label-eyebrow mb-1">Andamento nel tempo</div>
