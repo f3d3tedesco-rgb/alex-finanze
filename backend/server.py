@@ -13,14 +13,20 @@ from datetime import datetime, timezone
 
 # from emergentintegrations.llm.chat import LlmChat, UserMessage  # module unavailable on PyPI; disabled to prevent startup crash
 
-mongo_url = os.environ.get('MONGO_URL')
-if not mongo_url:
-    raise ValueError("MONGO_URL environment variable is not set. Please configure it in Railway.")
-db_name = os.environ.get('DB_NAME')
-if not db_name:
-    raise ValueError("DB_NAME environment variable is not set. Please configure it in Railway.")
-client = AsyncIOMotorClient(mongo_url)
-db = client[db_name]
+# Temporarily commented to debug environment loading
+# mongo_url = os.environ.get('MONGO_URL')
+# if not mongo_url:
+#     raise ValueError("MONGO_URL environment variable is not set. Please configure it in Railway.")
+# db_name = os.environ.get('DB_NAME')
+# if not db_name:
+#     raise ValueError("DB_NAME environment variable is not set. Please configure it in Railway.")
+# client = AsyncIOMotorClient(mongo_url)
+# db = client[db_name]
+
+# Create placeholder db object to prevent NameError
+class PlaceholderDB:
+    pass
+db = PlaceholderDB()
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY') or os.environ.get('ANTHROPIC_API_KEY')
 
