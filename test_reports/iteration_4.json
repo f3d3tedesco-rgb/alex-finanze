@@ -1,0 +1,30 @@
+{
+  "summary": "A.L.E.X. v2.1 backend REGRESSION after requirements.txt simplification (removed google-api-core/grpcio-status transitive pins). All 25/25 pytest tests pass in 41.3s. Verified: root/version, categories (defaults + CRUD), debts CRUD, settings PUT, monthly-entries dict-schema upsert, dashboard structure+math, rebalance endpoint (structure, skip-overweight, sum-to-budget, auto-detect, no-targets), allocation_targets on dashboard, backup export/import, migration integrity, and AI /ai/analyze (confirms emergentintegrations import still works with simplified requirements.txt).",
+  "tested_scope": ["backend"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "passed": [
+    "GET /api/ returns version 2.0, status ready",
+    "GET /api/categories returns 7 default categories with correct kinds",
+    "GET /api/dashboard returns categories, debts, allocation_targets, allocation_target_sum, fsi, fondo_emergenza, history",
+    "GET /api/rebalance?monthly_budget=500&months=12 returns valid suggestions, overweight cats get 0, sum equals budget",
+    "POST /api/monthly-entries with dict schema (contributions/balances/debt_payments) upserts by mese preserving id",
+    "PUT /api/settings persists new-schema keys and strips legacy",
+    "GET /api/backup/export returns all 6 collections with version 2.0",
+    "POST /api/ai/analyze returns valid JSON with decisione_finale in {BUY,HOLD,SELL,WATCH} - emergentintegrations OK after req.txt cleanup"
+  ],
+  "failed": [],
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "requirements.txt simplification (removed pinned google-api-core/grpcio-status) had NO functional regression on any tested endpoint. Safe for Render deploy.",
+    "server.py still at ~836 lines - splitting into route modules remains a nice-to-have (carried over from iteration_3, not a regression)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "not tested (per request)"},
+  "test_credentials": "N/A (no auth in app)",
+  "seed_data_creation": "Tests create TEST_* UUID-prefixed categories/debts/entries; all cleaned up in finally blocks.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Requirements.txt simplification verified. If Render deploy still fails, issue is environment/pip resolver related, not backend code. All 25 pytest tests remain a solid regression base."
+}
