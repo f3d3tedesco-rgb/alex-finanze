@@ -13,23 +13,29 @@ from datetime import datetime, timezone
 
 # from emergentintegrations.llm.chat import LlmChat, UserMessage  # module unavailable on PyPI; disabled to prevent startup crash
 
-# Temporarily commented to debug environment loading
-# mongo_url = os.environ.get('MONGO_URL')
-# if not mongo_url:
-#     raise ValueError("MONGO_URL environment variable is not set. Please configure it in Railway.")
-# db_name = os.environ.get('DB_NAME')
-# if not db_name:
-#     raise ValueError("DB_NAME environment variable is not set. Please configure it in Railway.")
-# client = AsyncIOMotorClient(mongo_url)
-# db = client[db_name]
+# Lazy-loaded MongoDB connection
+_db = None
 
-# Create placeholder db object to prevent NameError
-class PlaceholderDB:
-    pass
-db = PlaceholderDB()
+def get_db():
+    """Get MongoDB connection with lazy initialization."""
+    global _db
+    if _db is None:
+        mongo_url = os.environ.get('MONGO_URL')
+        if not mongo_url:
+            raise ValueError("MONGO_URL environment variable is not set. Please configure it in Railway.")
+        db_name = os.environ.get('DB_NAME')
+        if not db_name:
+            raise ValueError("DB_NAME environment variable is not set. Please configure it in Railway.")
+        client = AsyncIOMotorClient(mongo_url)
+        _db = client[db_name]
+    return _db
+
+# Create initial placeholder for compatibility
+db = None
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY') or os.environ.get('ANTHROPIC_API_KEY')
 
+# Add FastAPI startup event to initialize connection
 app = FastAPI(title="A.L.E.X. Financial Cockpit")
 api_router = APIRouter(prefix="/api")
 
@@ -835,9 +841,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
+    global db
+    db = get_db()
+    print("MongoDB connection initialized")
     await bootstrap_defaults()
 
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+async def shutdown_event():
+    global db
+    if db is not None:
+        # Close MongoDB connection
+        pass
