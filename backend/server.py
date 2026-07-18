@@ -1,5 +1,4 @@
 from fastapi import FastAPI, APIRouter, HTTPException
-from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
@@ -13,9 +12,6 @@ import uuid
 from datetime import datetime, timezone
 
 # from emergentintegrations.llm.chat import LlmChat, UserMessage  # module unavailable on PyPI; disabled to prevent startup crash
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env', override=False)
 
 mongo_url = os.environ.get('MONGO_URL')
 if not mongo_url:
