@@ -14,17 +14,38 @@ from datetime import datetime, timezone
 # from emergentintegrations.llm.chat import LlmChat, UserMessage  # module unavailable on PyPI; disabled to prevent startup crash
 
 mongo_url = os.environ.get('MONGO_URL')
-if not mongo_url:
-    raise ValueError("MONGO_URL environment variable is not set. Please configure it in Railway.")
-db_name = os.environ.get('DB_NAME')
-if not db_name:
-    raise ValueError("DB_NAME environment variable is not set. Please configure it in Railway.")
-client = AsyncIOMotorClient(mongo_url)
-db = client[db_name]
+# MongoDB lazily initialized
+_client = None
+db = None
 
+async def init_db():
+    """Initialize MongoDB connection."""
+    global _client, db
+    if db is None:
+        mongo_url = os.environ.get('MONGO_URL')
+        if not mongo_url:
+            raise ValueError("MONGO_URL not set!")
+        db_name = os.environ.get('DB_NAME')
+        if not db_name:
+            raise ValueError("DB_NAME not set!")
+        _client = AsyncIOMotorClient(mongo_url)
+        db = _client[db_name]
+    return db
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY') or os.environ.get('ANTHROPIC_API_KEY')
 
 app = FastAPI(title="A.L.E.X. Financial Cockpit")
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
+    await bootstrap_defaults()
+    print("✅ App started - MongoDB initialized")
+
+@app.on_event("shutdown")
+async def shutdown():
+    global _client
+    if _client:
+        _client.close()
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
