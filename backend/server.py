@@ -12,7 +12,14 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+# LLM integration is optional. If emergentintegrations is not installed
+# (e.g. self-hosted deploy without AI), the app still runs and the /api/ai/analyze
+# endpoint returns a helpful message instructing to use "Aggiungi manualmente" UI.
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+    _HAS_LLM = True
+except Exception:
+    _HAS_LLM = False
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -768,6 +775,11 @@ async def backup_import(payload: RestorePayload):
 # ---------- AI ----------
 @api_router.post("/ai/analyze")
 async def ai_analyze(req: AnalyzeRequest):
+    if not _HAS_LLM:
+        raise HTTPException(
+            status_code=501,
+            detail="Funzione AI non disponibile in questa installazione. Usa 'Aggiungi manualmente' nella pagina AI Analisi.",
+        )
     if not EMERGENT_LLM_KEY:
         raise HTTPException(status_code=500, detail="LLM key non configurata")
     system = (
