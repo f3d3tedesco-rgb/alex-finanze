@@ -1,0 +1,15 @@
+@app.on_event("startup")
+async def on_startup():
+    global db, _db
+    mongo_url = os.environ.get('MONGO_URL')
+    if not mongo_url:
+        raise ValueError("MONGO_URL environment variable is not set. Please configure it in Railway.")
+    db_name = os.environ.get('DB_NAME')
+    if not db_name:
+        raise ValueError("DB_NAME environment variable is not set. Please configure it in Railway.")
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
+    _db = db
+    print("MongoDB connection initialized")
+    await bootstrap_defaults()
+
