@@ -157,10 +157,13 @@ async def bootstrap_defaults():
             cat = Category(**c)
             if old_settings:
                 key = f"saldo_iniziale_{c['id'].replace('etf', 'etf').replace('satellite', 'satellite').replace('priamo', 'priamo').replace('fondo_figlia', 'fondo_figlia').replace('fondo_famiglia', 'fondo_famiglia')}"
-                # only accumulation types had initial_balance in old schema
-                if c["kind"] == "accumulation":
-                    old_key = f"saldo_iniziale_{c['id']}"
-                    cat.initial_balance = float(old_settings.get(old_key, 0) or 0)
+
+async def bootstrap_defaults():
+    global db
+    if db is None:
+        db = get_db()
+    # Categories
+    if await db.categories.count_documents({}) == 0:
                 elif c["id"] in ("revolut", "conto_deposito"):
                     cat.initial_balance = 0.0
             await db.categories.insert_one(cat.model_dump())
