@@ -12,7 +12,7 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+# from emergentintegrations.llm.chat import LlmChat, UserMessage  # module unavailable on PyPI; disabled to prevent startup crash
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -789,24 +789,25 @@ async def ai_analyze(req: AnalyzeRequest):
         "}"
     )
     prompt = f"Azienda: {req.azienda}\nTicker: {req.ticker}\nContesto: {req.contesto or 'nessuno'}\n\nEsegui l'analisi."
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"alex-{uuid.uuid4()}",
-        system_message=system,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-    try:
-        response = await chat.send_message(UserMessage(text=prompt))
-    except Exception as e:
-        logger.exception("LLM error")
-        raise HTTPException(status_code=502, detail=f"Errore AI: {str(e)}")
-    text = response if isinstance(response, str) else str(response)
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        raise HTTPException(status_code=502, detail="Risposta AI non in formato JSON")
-    try:
-        return json.loads(match.group(0))
-    except Exception:
-        raise HTTPException(status_code=502, detail="JSON AI non valido")
+    # chat = LlmChat(
+    #     api_key=EMERGENT_LLM_KEY,
+    #     session_id=f"alex-{uuid.uuid4()}",
+    #     system_message=system,
+    # ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+    # try:
+    #     response = await chat.send_message(UserMessage(text=prompt))
+    # except Exception as e:
+    #     logger.exception("LLM error")
+    #     raise HTTPException(status_code=502, detail=f"Errore AI: {str(e)}")
+    raise HTTPException(status_code=503, detail="Funzione AI non disponibile: modulo emergentintegrations non installato")
+    # text = response if isinstance(response, str) else str(response)
+    # match = re.search(r"\{.*\}", text, re.DOTALL)
+    # if not match:
+    #     raise HTTPException(status_code=502, detail="Risposta AI non in formato JSON")
+    # try:
+    #     return json.loads(match.group(0))
+    # except Exception:
+    #     raise HTTPException(status_code=502, detail="JSON AI non valido")
 
 
 @api_router.get("/")
