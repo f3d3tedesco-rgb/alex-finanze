@@ -163,13 +163,14 @@ async def bootstrap_defaults():
     if db is None:
         db = get_db()
     # Categories
-    if await db.categories.count_documents({}) == 0:
-                elif c["id"] in ("revolut", "conto_deposito"):
-                    cat.initial_balance = 0.0
-            await db.categories.insert_one(cat.model_dump())
-        logger.info("Seeded default categories")
+if await db.categories.count_documents({}) == 0:
+    for c in DEFAULT_CATEGORIES:
+        cat = Category(**c)
+        if c["id"] in ("revolut", "conto_deposito"):
+            cat.initial_balance = 0.0
+        await db.categories.insert_one(cat.model_dump())
 
-    # Debts (migrate old debito_zio if exists)
+    logger.info("Seeded default categories")
     if await db.debts.count_documents({}) == 0:
         old_settings = await db.settings.find_one({"id": "singleton"}, {"_id": 0})
         if old_settings and float(old_settings.get("debito_zio_iniziale", 0) or 0) > 0:
